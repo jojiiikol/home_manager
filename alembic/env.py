@@ -7,8 +7,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config import get_settings
 from src.database import Base
+from src.models import users  # noqa: F401
 
-# Импортируйте здесь модули моделей при их появлении, чтобы заполнить metadata.
+# Импорты моделей заполняют metadata для autogenerate.
 config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)

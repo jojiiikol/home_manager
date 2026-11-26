@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     app_name: str = "Домашний менеджер"
     debug: bool = False
+    jwt_secret_key: SecretStr = Field(min_length=32)
     postgres_host: str = "localhost"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
     postgres_db: str = Field(min_length=1)
