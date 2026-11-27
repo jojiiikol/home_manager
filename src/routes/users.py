@@ -9,8 +9,8 @@ from src.exceptions.users import (
     UserNotFound,
 )
 from src.routes.dependencies import CurrentUser, UsersServiceDependency
+from src.schemas.passwords import ChangePasswordRequest
 from src.schemas.users import (
-    ChangePasswordRequest,
     LoginRequest,
     PublicUserResponse,
     RegisterRequest,

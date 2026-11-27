@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.domain.identifiers import normalize_identifier
 from src.dto.users import UserAdditionalInfo, UserCredentials, UserProfile
 from src.exceptions.users import UsernameAlreadyExists
 from src.models.users import User, UserInfo
@@ -15,7 +16,11 @@ class UsersRepository:
         self.session = session
 
     async def create(self, username: str, password_hash: str) -> UserProfile:
-        user = User(username=username, password_hash=password_hash, info=UserInfo())
+        user = User(
+            username=normalize_identifier(username),
+            password_hash=password_hash,
+            info=UserInfo(),
+        )
         self.session.add(user)
         try:
             await self.session.commit()
@@ -57,7 +62,9 @@ class UsersRepository:
     ) -> UserCredentials | None:
         row = (
             await self.session.execute(
-                select(User.id, User.password_hash).where(User.username == username)
+                select(User.id, User.password_hash).where(
+                    User.username == normalize_identifier(username)
+                )
             )
         ).one_or_none()
         return UserCredentials(*row) if row else None

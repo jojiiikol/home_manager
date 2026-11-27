@@ -12,20 +12,19 @@ from pydantic import (
 )
 
 from src.domain.houses import ParticipantRole, ParticipantStatus
+from src.schemas.identifiers import Identifier
+from src.schemas.passwords import (
+    PasswordConfirmationRequest,
+)
 
-HouseLogin = Annotated[
-    str, StringConstraints(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
-]
+HouseLogin = Identifier
 HouseName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
 ]
-HousePassword = Annotated[SecretStr, Field(min_length=8, max_length=128)]
 
 
-class CreateHouseRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class CreateHouseRequest(PasswordConfirmationRequest):
     login: HouseLogin
-    password: HousePassword
     name: HouseName
 
 
@@ -47,12 +46,6 @@ class UpdateHouseRequest(BaseModel):
         ):
             raise ValueError("Provide at least one non-null login or name")
         return self
-
-
-class ChangeHousePasswordRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    old_password: Annotated[SecretStr, Field(min_length=1, max_length=128)]
-    new_password: HousePassword
 
 
 class UpdateParticipantRequest(BaseModel):
@@ -88,7 +81,13 @@ class ParticipantResponse(BaseModel):
     id: UUID
     house_id: UUID
     user_id: UUID
+    username: str
+    name: str | None
     role: ParticipantRole
     status: ParticipantStatus
     created_at: datetime
     updated_at: datetime
+
+
+class HouseListResponse(HouseResponse):
+    participation: ParticipantResponse

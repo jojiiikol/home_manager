@@ -3,7 +3,7 @@ from uuid import UUID
 from anyio import to_thread
 
 from src.domain.houses import ParticipantRole, ParticipantStatus
-from src.dto.houses import HouseCredentials, HouseProfile, Participant
+from src.dto.houses import HouseCredentials, HouseListItem, HouseProfile, Participant
 from src.exceptions.houses import (
     AlreadyHouseParticipant,
     HouseAccessDenied,
@@ -58,7 +58,7 @@ class HousesService:
             raise HouseNotFound
         return house
 
-    async def list_houses(self, user_id: UUID) -> list[HouseProfile]:
+    async def list_houses(self, user_id: UUID) -> list[HouseListItem]:
         return await self.repository.list_for_user(user_id)
 
     async def get_my_participation(self, house_id: UUID, user_id: UUID) -> Participant:

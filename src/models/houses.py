@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 from src.domain.houses import ParticipantRole, ParticipantStatus
+from src.models.users import User
 
 
 class House(Base):
@@ -83,3 +84,4 @@ class HouseParticipant(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     house: Mapped[House] = relationship(back_populates="participants")
+    user: Mapped[User] = relationship()

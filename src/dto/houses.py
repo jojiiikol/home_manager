@@ -30,7 +30,14 @@ class Participant:
     id: UUID
     house_id: UUID
     user_id: UUID
+    username: str
+    name: str | None
     role: ParticipantRole
     status: ParticipantStatus
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class HouseListItem(HouseProfile):
+    participation: Participant

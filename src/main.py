@@ -16,6 +16,11 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    debug=settings.debug,
+    lifespan=lifespan,
+    root_path=settings.root_path,
+)
 app.include_router(router)
 app.add_exception_handler(HouseError, house_error_handler)

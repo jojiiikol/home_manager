@@ -8,14 +8,15 @@ from src.database import get_session
 from src.repositories.houses import HousesRepository
 from src.routes.dependencies import CurrentUser
 from src.schemas.houses import (
-    ChangeHousePasswordRequest,
     CreateHouseRequest,
+    HouseListResponse,
     HouseResponse,
     JoinHouseRequest,
     ParticipantResponse,
     UpdateHouseRequest,
     UpdateParticipantRequest,
 )
+from src.schemas.passwords import ChangePasswordRequest
 from src.services.houses import HousesService
 
 router = APIRouter(prefix="/houses", tags=["houses"])
@@ -42,10 +43,10 @@ async def create_house(
     return HouseResponse.model_validate(house)
 
 
-@router.get("", response_model=list[HouseResponse])
+@router.get("", response_model=list[HouseListResponse])
 async def list_houses(user: CurrentUser, service: HouseServiceDependency):
     return [
-        HouseResponse.model_validate(house)
+        HouseListResponse.model_validate(house)
         for house in await service.list_houses(user.id)
     ]
 
@@ -85,7 +86,7 @@ async def update_house(
 @router.put("/{house_id}/password", status_code=status.HTTP_204_NO_CONTENT)
 async def change_house_password(
     house_id: UUID,
-    body: ChangeHousePasswordRequest,
+    body: ChangePasswordRequest,
     user: CurrentUser,
     service: HouseServiceDependency,
 ) -> Response:

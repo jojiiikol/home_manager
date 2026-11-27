@@ -13,7 +13,12 @@ from src.security.passwords import verify_password
 
 def register(client, username="alice"):
     response = client.post(
-        "/users", json={"username": username, "password": "original-password"}
+        "/users",
+        json={
+            "username": username,
+            "password": "original-password",
+            "password_confirmation": "original-password",
+        },
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -43,7 +48,12 @@ def test_registration_creates_profile_and_hash_atomically(client):
     assert user["additional_info"] == {"name": None}
     assert (
         client.post(
-            "/users", json={"username": "alice", "password": "other-password"}
+            "/users",
+            json={
+                "username": "alice",
+                "password": "other-password",
+                "password_confirmation": "other-password",
+            },
         ).status_code
         == 409
     )
@@ -122,7 +132,11 @@ def test_profiles_are_protected_and_users_only_modify_themselves(client):
 def test_password_change_requires_token_and_old_password(client):
     register(client)
     headers = auth(login(client))
-    body = {"old_password": "wrong", "new_password": "new-password"}
+    body = {
+        "old_password": "wrong",
+        "new_password": "new-password",
+        "new_password_confirmation": "new-password",
+    }
     assert client.put("/users/me/password", json=body).status_code == 401
     assert (
         client.put("/users/me/password", json=body, headers=headers).status_code == 400
@@ -172,10 +186,23 @@ def test_invalid_tokens_are_rejected(client, kind):
 @pytest.mark.parametrize(
     "body",
     [
-        {"username": "ab", "password": "long-password"},
-        {"username": "with space", "password": "long-password"},
-        {"username": "alice", "password": "short"},
-        {"username": "alice", "password": "long-password", "name": "Alice"},
+        {
+            "username": "ab",
+            "password": "long-password",
+            "password_confirmation": "long-password",
+        },
+        {
+            "username": "with space",
+            "password": "long-password",
+            "password_confirmation": "long-password",
+        },
+        {"username": "alice", "password": "short", "password_confirmation": "short"},
+        {
+            "username": "alice",
+            "password": "long-password",
+            "name": "Alice",
+            "password_confirmation": "long-password",
+        },
     ],
 )
 def test_registration_validation(client, body):

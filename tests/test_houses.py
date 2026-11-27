@@ -13,7 +13,12 @@ def actors(client):
     result = []
     for username in ["alice", "bob", "outsider"]:
         response = client.post(
-            "/users", json={"username": username, "password": "user-password"}
+            "/users",
+            json={
+                "username": username,
+                "password": "user-password",
+                "password_confirmation": "user-password",
+            },
         )
         assert response.status_code == 201
         token = client.post(
@@ -31,6 +36,7 @@ def create(client, headers, login="family"):
             "login": login,
             "password": "house-password",
             "name": "Дом семьи",
+            "password_confirmation": "house-password",
         },
     )
     assert response.status_code == 201, response.text
@@ -61,6 +67,7 @@ def test_create_house_and_unique_login_are_atomic(client, actors):
                 "login": "family",
                 "password": "another-password",
                 "name": "Дубликат",
+                "password_confirmation": "another-password",
             },
         ).status_code
         == 409
@@ -108,6 +115,8 @@ def test_join_leave_rejoin_keeps_membership_and_resets_role(client, actors):
     assert returned["role"] == "member" and returned["status"] == "active"
     houses = client.get("/houses", headers=bob[1]).json()
     assert [item["id"] for item in houses] == [house["id"]]
+    assert houses[0]["participation"]["role"] == "member"
+    assert houses[0]["participation"]["status"] == "active"
 
 
 def test_block_restore_and_access_boundaries(client, actors):
@@ -133,7 +142,11 @@ def test_block_restore_and_access_boundaries(client, actors):
             client.put(
                 base + "/password",
                 headers=headers,
-                json={"old_password": "house-password", "new_password": "new-password"},
+                json={
+                    "old_password": "house-password",
+                    "new_password": "new-password",
+                    "new_password_confirmation": "new-password",
+                },
             ).status_code
             == 403
         )
@@ -247,7 +260,11 @@ def test_login_name_password_and_existing_memberships(client, actors):
     assert response.status_code == 200, response.text
     assert response.json()["additional_info"] == {"name": "Новое имя"}
     assert join(client, outsider[1]).status_code == 400
-    body = {"old_password": "wrong", "new_password": "new-password"}
+    body = {
+        "old_password": "wrong",
+        "new_password": "new-password",
+        "new_password_confirmation": "new-password",
+    }
     assert (
         client.put(base + "/password", headers=alice[1], json=body).status_code == 400
     )
@@ -272,7 +289,12 @@ def test_house_endpoints_require_token(client):
         (
             "POST",
             "/houses",
-            {"login": "family", "name": "Дом", "password": "house-password"},
+            {
+                "login": "family",
+                "name": "Дом",
+                "password": "house-password",
+                "password_confirmation": "house-password",
+            },
         ),
         ("GET", "/houses", None),
         ("GET", base, None),
@@ -284,7 +306,11 @@ def test_house_endpoints_require_token(client):
         (
             "PUT",
             base + "/password",
-            {"old_password": "old-password", "new_password": "new-password"},
+            {
+                "old_password": "old-password",
+                "new_password": "new-password",
+                "new_password_confirmation": "new-password",
+            },
         ),
         ("PATCH", base + f"/participants/{uuid4()}", {"role": "admin"}),
     ]:
@@ -357,10 +383,77 @@ def test_participant_update_validation(client, actors, body):
     "body",
     [
         {"login": "family", "password": "house-password"},
-        {"login": "family", "password": "house-password", "name": None},
-        {"login": "family", "password": "house-password", "name": " "},
-        {"login": "family", "password": "short", "name": "Дом"},
+        {
+            "login": "family",
+            "password": "house-password",
+            "name": None,
+            "password_confirmation": "house-password",
+        },
+        {
+            "login": "family",
+            "password": "house-password",
+            "name": " ",
+            "password_confirmation": "house-password",
+        },
+        {
+            "login": "family",
+            "password": "short",
+            "name": "Дом",
+            "password_confirmation": "short",
+        },
     ],
 )
 def test_house_creation_validation(client, actors, body):
     assert client.post("/houses", headers=actors[0][1], json=body).status_code == 422
+
+
+def test_participant_names_and_membership_status_for_interface(client, actors):
+    alice, bob, _ = actors
+    house = create(client, alice[1])
+    base = f"/houses/{house['id']}"
+    join(client, bob[1])
+    client.patch("/users/me", headers=bob[1], json={"name": "Борис"})
+    roster = client.get(base + "/participants", headers=alice[1]).json()
+    assert next(item for item in roster if item["user_id"] == bob[0])["name"] == "Борис"
+    creator = next(item for item in roster if item["user_id"] == alice[0])
+    assert creator["name"] is None and creator["username"] == "alice"
+    assert client.post(base + "/leave", headers=bob[1]).status_code == 200
+    listing = client.get("/houses", headers=bob[1]).json()
+    assert listing[0]["participation"]["status"] == "left"
+    assert listing[0]["participation"]["name"] == "Борис"
+
+
+def test_mismatched_confirmation_does_not_change_house_or_passwords(client, actors):
+    alice, bob, _ = actors
+    create_body = {
+        "login": "family",
+        "name": "Дом",
+        "password": "house-password",
+        "password_confirmation": "another-password",
+    }
+    assert client.post("/houses", headers=alice[1], json=create_body).status_code == 422
+    assert client.get("/houses", headers=alice[1]).json() == []
+    house = create(client, alice[1])
+    change = {
+        "old_password": "house-password",
+        "new_password": "new-password",
+        "new_password_confirmation": "another-password",
+    }
+    assert (
+        client.put(
+            f"/houses/{house['id']}/password", headers=alice[1], json=change
+        ).status_code
+        == 422
+    )
+    assert join(client, bob[1]).status_code == 200
+    change["old_password"] = "user-password"
+    assert (
+        client.put("/users/me/password", headers=alice[1], json=change).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/auth/token", json={"username": "alice", "password": "user-password"}
+        ).status_code
+        == 200
+    )

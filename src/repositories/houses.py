@@ -6,14 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.domain.houses import ParticipantRole, ParticipantStatus
+from src.domain.identifiers import normalize_identifier
 from src.dto.houses import (
     HouseAdditionalInfo,
     HouseCredentials,
+    HouseListItem,
     HouseProfile,
     Participant,
 )
 from src.exceptions.houses import HouseLoginAlreadyExists
 from src.models.houses import House, HouseInfo, HouseParticipant
+from src.models.users import User
 
 
 class HousesRepository:
@@ -40,7 +43,7 @@ class HousesRepository:
         self, login: str, password_hash: str, name: str, user_id: UUID
     ) -> HouseProfile:
         house = House(
-            login=login,
+            login=normalize_identifier(login),
             password_hash=password_hash,
             info=HouseInfo(name=name),
             participants=[
@@ -71,6 +74,8 @@ class HousesRepository:
             id=participant.id,
             house_id=participant.house_id,
             user_id=participant.user_id,
+            username=participant.user.username,
+            name=participant.user.info.name,
             role=participant.role,
             status=participant.status,
             created_at=participant.created_at,
@@ -91,7 +96,7 @@ class HousesRepository:
         row = (
             await self.session.execute(
                 select(House.id, House.password_hash)
-                .where(House.login == login)
+                .where(House.login == normalize_identifier(login))
                 .with_for_update()
             )
         ).one_or_none()
@@ -106,21 +111,42 @@ class HousesRepository:
         )
         return self._house_profile(house) if house else None
 
-    async def list_for_user(self, user_id: UUID) -> list[HouseProfile]:
+    async def list_for_user(self, user_id: UUID) -> list[HouseListItem]:
         houses = await self.session.scalars(
             select(House)
             .join(HouseParticipant)
-            .options(selectinload(House.info))
+            .options(
+                selectinload(House.info),
+                selectinload(
+                    House.participants.and_(HouseParticipant.user_id == user_id)
+                )
+                .selectinload(HouseParticipant.user)
+                .selectinload(User.info),
+            )
             .where(HouseParticipant.user_id == user_id)
             .order_by(House.created_at, House.id)
         )
-        return [self._house_profile(house) for house in houses]
+        result = []
+        for house in houses:
+            profile = self._house_profile(house)
+            result.append(
+                HouseListItem(
+                    id=profile.id,
+                    login=profile.login,
+                    additional_info=profile.additional_info,
+                    created_at=profile.created_at,
+                    updated_at=profile.updated_at,
+                    participation=self._participant(house.participants[0]),
+                )
+            )
+        return result
 
     async def get_participant(
         self, house_id: UUID, user_id: UUID
     ) -> Participant | None:
         participant = await self.session.scalar(
             select(HouseParticipant)
+            .options(selectinload(HouseParticipant.user).selectinload(User.info))
             .where(
                 HouseParticipant.house_id == house_id,
                 HouseParticipant.user_id == user_id,
@@ -132,6 +158,7 @@ class HousesRepository:
     async def list_participants(self, house_id: UUID) -> list[Participant]:
         participants = await self.session.scalars(
             select(HouseParticipant)
+            .options(selectinload(HouseParticipant.user).selectinload(User.info))
             .where(HouseParticipant.house_id == house_id)
             .order_by(HouseParticipant.created_at, HouseParticipant.id)
         )
@@ -173,7 +200,9 @@ class HousesRepository:
         if login is not None:
             try:
                 await self.session.execute(
-                    update(House).where(House.id == house_id).values(login=login)
+                    update(House)
+                    .where(House.id == house_id)
+                    .values(login=normalize_identifier(login))
                 )
             except IntegrityError as error:
                 await self._raise_integrity_error(error)

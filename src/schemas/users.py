@@ -4,16 +4,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
 
-Username = Annotated[
-    str, StringConstraints(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
-]
-Password = Annotated[SecretStr, Field(min_length=8, max_length=128)]
+from src.schemas.identifiers import Identifier
+from src.schemas.passwords import PasswordConfirmationRequest
+
+Username = Identifier
 
 
-class RegisterRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class RegisterRequest(PasswordConfirmationRequest):
     username: Username
-    password: Password
 
 
 class LoginRequest(BaseModel):
@@ -30,12 +28,6 @@ class UpdateProfileRequest(BaseModel):
         ]
         | None
     )
-
-
-class ChangePasswordRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    old_password: Annotated[SecretStr, Field(min_length=1, max_length=128)]
-    new_password: Password
 
 
 class UserInfoResponse(BaseModel):
