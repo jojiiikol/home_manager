@@ -4,47 +4,11 @@ from uuid import UUID, uuid4
 import anyio
 import jwt
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import event, select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy import select, update
 
 from src.config import get_settings
-from src.database import Base, get_session
-from src.main import app
 from src.models.users import User, UserInfo
 from src.security.passwords import verify_password
-
-
-@pytest.fixture
-def client(tmp_path):
-    engine = create_async_engine(
-        f"sqlite+aiosqlite:///{tmp_path / 'users.db'}", poolclass=NullPool
-    )
-
-    @event.listens_for(engine.sync_engine, "connect")
-    def enable_foreign_keys(connection, record):
-        connection.execute("PRAGMA foreign_keys=ON")
-
-    sessions = async_sessionmaker(engine, expire_on_commit=False)
-
-    async def setup():
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-
-    async def session_override():
-        async with sessions() as session:
-            yield session
-
-    anyio.run(setup)
-    app.dependency_overrides[get_session] = session_override
-    try:
-        with TestClient(app) as test_client:
-            test_client.test_sessions = sessions
-            yield test_client
-    finally:
-        app.dependency_overrides.clear()
-        anyio.run(engine.dispose)
 
 
 def register(client, username="alice"):

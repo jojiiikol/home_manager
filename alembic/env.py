@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.config import get_settings
 from src.database import Base
-from src.models import users  # noqa: F401
+from src.models import (
+    houses,  # noqa: F401
+    users,  # noqa: F401
+)
 
 # Импорты моделей заполняют metadata для autogenerate.
 config = context.config
